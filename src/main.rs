@@ -5,6 +5,7 @@ mod day4;
 mod day5;
 mod day6;
 mod day7;
+mod day8;
 
 fn main() {
     day1::handle_elves_food();
@@ -14,4 +15,5 @@ fn main() {
     day5::supply_stack();
     day6::detect_signal();
     day7::update_handled();
+    day8::build_tree_house();
 }
