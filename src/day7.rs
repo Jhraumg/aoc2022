@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use eyre::{Context, ContextCompat};
 
@@ -13,7 +13,7 @@ struct File {
 }
 
 struct FileSystem {
-    dirs: HashMap<Vec<&'static [u8]>, Dir>, // use a Trie
+    dirs: HashMap<Vec<&'static [u8]>, Dir>, // TODO : use a Trie<&'static [u8], Dir>
     current_dir: Vec<&'static [u8]>,
 }
 enum Line {
@@ -139,6 +139,27 @@ impl FileSystem {
         }
         filtered_dir_to_size.values().sum()
     }
+
+    fn get_minimum_freed_storage(&self, capacity: usize, free_size_target: usize) -> usize {
+        let used = self.get_total_size(&vec![]);
+        let missing = free_size_target + used - capacity;
+
+        // ugly, needs a proper TRIE structure
+        let all_dirs: HashSet<Vec<&[u8]>> = self
+            .dirs
+            .iter()
+            .flat_map(|(d, _)| {
+                (0usize..=d.len()).map(|i| d.iter().copied().take(i).collect::<Vec<&[u8]>>())
+            })
+            .collect();
+
+        all_dirs
+            .iter()
+            .map(|d| self.get_total_size(d))
+            .filter(|s| *s >= missing)
+            .min()
+            .unwrap_or(0)
+    }
 }
 
 pub fn update_handled() {
@@ -149,6 +170,9 @@ pub fn update_handled() {
     }
     let size_under_100000_sum = fs.sum_size_under_threshold(100000);
     println!("sum of dir under 100000 size {size_under_100000_sum}");
+
+    let freed_size = fs.get_minimum_freed_storage(70000000, 30000000);
+    println!("freed dir is {freed_size}");
 }
 
 #[cfg(test)]
@@ -188,5 +212,6 @@ mod tests {
             fs.parse_line(l).expect("could parse {l}");
         }
         assert_eq!(95437, fs.sum_size_under_threshold(100000));
+        assert_eq!(24933642, fs.get_minimum_freed_storage(70000000, 30000000));
     }
 }
