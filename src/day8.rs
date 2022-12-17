@@ -61,11 +61,15 @@ impl ForestGrid {
             .expect("looking for visibility outside forest");
 
         row.iter().take(col_idx).any(|h| *h >= height)
-        && row.iter().rev()
+            && row
+                .iter()
+                .rev()
                 .take(max_row_idx - col_idx)
                 .any(|h| *h >= height)
-        && col.iter().take(row_idx).any(|h| *h >= height)
-        && col.iter().rev()
+            && col.iter().take(row_idx).any(|h| *h >= height)
+            && col
+                .iter()
+                .rev()
                 .take(max_col_idx - row_idx)
                 .any(|h| *h >= height)
     }
@@ -86,22 +90,40 @@ impl ForestGrid {
 
         let left = min(
             col_idx,
-            1+ row[0..col_idx].iter().rev().take_while(|h| **h < height).count());
+            1 + row[0..col_idx]
+                .iter()
+                .rev()
+                .take_while(|h| **h < height)
+                .count(),
+        );
         let right = if col_idx < row.len() - 1 {
             min(
-                1 + row[col_idx + 1..col.len()].iter().take_while(|h| **h < height).count(),
-                row.len() - 1 - col_idx)
+                1 + row[col_idx + 1..col.len()]
+                    .iter()
+                    .take_while(|h| **h < height)
+                    .count(),
+                row.len() - 1 - col_idx,
+            )
         } else {
             0
         };
 
         let up = min(
             row_idx,
-            1 + col[0..row_idx].iter().rev().take_while(|h| **h < height).count());
+            1 + col[0..row_idx]
+                .iter()
+                .rev()
+                .take_while(|h| **h < height)
+                .count(),
+        );
         let down = if row_idx < col.len() - 1 {
             min(
                 col.len() - 1 - row_idx,
-                1 + col[row_idx + 1..row.len()].iter().take_while(|h| **h < height).count())
+                1 + col[row_idx + 1..row.len()]
+                    .iter()
+                    .take_while(|h| **h < height)
+                    .count(),
+            )
         } else {
             0
         };
