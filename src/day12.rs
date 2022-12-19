@@ -187,7 +187,7 @@ mod tests {
         "};
 
         let map: Map = elevations.parse().expect("could not parse map");
-        let mut path = Path::new(&map, map.start);
+        let path = Path::new(&map, map.start);
         assert_eq!(31, path.find_shortest_path_len().unwrap());
         assert_eq!(29, find_shortest_slope(&map));
     }

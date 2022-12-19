@@ -2,6 +2,7 @@ mod day1;
 mod day10;
 mod day11;
 mod day12;
+mod day13;
 mod day2;
 mod day3;
 mod day4;
@@ -24,4 +25,5 @@ fn main() {
     day10::decode_signal();
     day11::chase_monkeys();
     day12::climb_hills();
+    day13::distress_signal();
 }
