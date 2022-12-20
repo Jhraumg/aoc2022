@@ -4,6 +4,7 @@ mod day11;
 mod day12;
 mod day13;
 mod day14;
+mod day15;
 mod day2;
 mod day3;
 mod day4;
@@ -28,4 +29,5 @@ fn main() {
     day12::climb_hills();
     day13::distress_signal();
     day14::avoid_sand();
+    day15::find_beacons();
 }
