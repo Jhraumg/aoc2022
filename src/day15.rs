@@ -1,5 +1,4 @@
 use eyre::{eyre, Context};
-use std::cmp::max;
 use std::collections::HashSet;
 use std::str::FromStr;
 
@@ -57,7 +56,6 @@ fn count_impossible_sport(input: &str, y: isize) -> usize {
         .map(|(s, b)| s.distance(b))
         .max()
         .expect("no max distance");
-    println!("max dist {max_dist}");
     let min_x = sensors_beacons
         .iter()
         .map(|(s, _)| s.x)
@@ -85,54 +83,30 @@ pub fn find_beacons() {
     let count = count_impossible_sport(input, 2000000);
     println!("number of impossible spots at 2000000 : {count}");
 
-    for f in 0..4000 {
-        // search is faster by vertical bands
-        if let Some(freq) = find_beacon(input, 1000 * f, 1000 * (f + 1), 4000000) {
-            println!("beacon freq : {freq}");
-            break;
-        }
-    }
+    let freq = find_beacon(input, 4000000, 4000000).unwrap();
+
+    println!("beacon freq : {freq}");
 }
 
-pub fn find_beacon(input: &str, min_x: isize, max_x: isize, max_y: isize) -> Option<isize> {
+pub fn find_beacon(input: &str, max_x: isize, max_y: isize) -> Option<isize> {
     let sensors_beacons = read_pos(input);
     let sensors_dist: Vec<(Point, isize)> = sensors_beacons
         .iter()
         .map(|(s, b)| (*s, s.distance(b)))
         .collect();
-    let mut y = 0;
-    while y <= max_y {
-        let mut step = (min_x..=max_x)
-            .map(|x| {
-                let margin = sensors_dist
-                    .iter()
-                    .map(move |(s, d)| {
-                        let new_d = Point { x, y }.distance(s);
-                        if *d == new_d && s.y > y {
-                            2 * (s.y - y)
-                        } else {
-                            *d - new_d
-                        }
-                    })
-                    .max()
-                    .unwrap();
-                margin
-            })
-            .min()
-            .unwrap();
-        if step < 0 {
-            break;
-        }
-        if step == 0 {
-            // should not happen ?
-            step = 1;
-        }
-        y += max(step, 1);
-    }
-    for x in min_x..=max_x {
-        let p = Point { x, y };
-        if sensors_dist.iter().all(|(s, d)| s.distance(&p) > *d) {
-            return Some(x * 4000000 + y);
+    for y  in 0..=max_y {
+        let mut x = 0;
+        while x <= max_x {
+            let margin = sensors_dist
+                .iter()
+                .map(|(s, d)|*d - Point { x, y }.distance(s))
+                .max()
+                .unwrap();
+
+            if margin < 0 {
+                return Some(x * 4000000 + y);
+            }
+            x += margin+1;
         }
     }
     None
@@ -162,6 +136,6 @@ mod tests {
             Sensor at x=20, y=1: closest beacon is at x=15, y=3
         "};
         assert_eq!(26, count_impossible_sport(input, 10));
-        assert_eq!(56000011, find_beacon(input, 20, 20));
+        assert_eq!(56000011, find_beacon(input, 20, 20).unwrap());
     }
 }
