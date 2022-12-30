@@ -94,19 +94,19 @@ pub fn find_beacon(input: &str, max_x: isize, max_y: isize) -> Option<isize> {
         .iter()
         .map(|(s, b)| (*s, s.distance(b)))
         .collect();
-    for y  in 0..=max_y {
+    for y in 0..=max_y {
         let mut x = 0;
         while x <= max_x {
             let margin = sensors_dist
                 .iter()
-                .map(|(s, d)|*d - Point { x, y }.distance(s))
+                .map(|(s, d)| *d - Point { x, y }.distance(s))
                 .max()
                 .unwrap();
 
             if margin < 0 {
                 return Some(x * 4000000 + y);
             }
-            x += margin+1;
+            x += margin + 1;
         }
     }
     None
