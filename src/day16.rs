@@ -214,6 +214,7 @@ impl<'v> Volcano<'v> {
             let new_bests: Vec<_> = bests
                 .iter()
                 .flat_map(|(b1, b2)| {
+                    // FIXME : could store already_opened with each entry, to avoid building it each time
                     let already_opened: HashSet<_> = b1
                         .opened_at
                         .iter()
