@@ -1,14 +1,13 @@
-use crate::day16::Action::{Move, Open};
 use eyre::{Context, ContextCompat};
 use itertools::Itertools;
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::iter::once;
 
 #[derive(Debug, Clone)]
 struct Valve<'v> {
     name: &'v str,
     flow: usize,
-    nexts: Vec<&'v str>
+    nexts: Vec<&'v str>,
 }
 
 impl<'v> Valve<'v> {
@@ -26,122 +25,52 @@ impl<'v> Valve<'v> {
             .map(str::trim)
             .collect();
 
-        Ok(Self {
-            name,
-            flow,
-            nexts,
-        })
+        Ok(Self { name, flow, nexts })
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Action<'v> {
-    Open(&'v str),
-    Move(&'v str),
 }
 
 #[derive(Debug, Clone)]
-struct Path<'v> {
-    actions: Vec<Action<'v>>,
+struct OpeningPath<'v> {
+    opened_at: Vec<(&'v str, usize)>,
 }
-impl<'v> Path<'v> {
-    fn score(&self, volcano: &Volcano) -> usize {
-        let time = volcano.time_left;
-        self.actions
+
+impl<'v> OpeningPath<'v> {
+    fn score(&self, volcano: &Volcano<'v>) -> usize {
+        let total_time = volcano.time_left;
+        self.opened_at
             .iter()
-            .take(time)
-            .enumerate()
-            .map(|(i, j)| match j {
-                Action::Open(n) => {
-                    (volcano.time_left - i - 1)
-                        * volcano.valves_by_name.get(n).map(|v| v.flow).unwrap_or(0)
-                }
-                Action::Move(_) => 0,
+            .map(|(name, dist)| {
+                total_time.saturating_sub(*dist)
+                    * volcano
+                        .valves_by_name
+                        .get(name)
+                        .map(|v| v.flow)
+                        .unwrap_or(0)
             })
             .sum()
     }
-    fn nexts(&self, volcano: &'v Volcano) -> Vec<Self> {
-        if self.actions.len() > volcano.time_left {
-            return vec![];
-        }
-        let opened: HashSet<_> = self
-            .actions
-            .iter()
-            .filter_map(|a| match a {
-                Open(v) => Some(*v),
-                Move(_) => None,
-            })
-            .collect();
-        if let Some(last_action) = self.actions.last() {
-            let last_node = match last_action {
-                Open(last_node) => last_node,
-                Move(last_node) => last_node,
-            };
-            if let Some(last_node) = volcano.valves_by_name.get(last_node) {
-                let mut result: Vec<_> = last_node
-                    .nexts
-                    .iter()
-                    .map(|n| {
-                        let mut actions = self.actions.clone();
-                        actions.push(Move(n));
-                        Self { actions }
-                    })
-                    .collect();
-                if !opened.contains(last_node.name) {
-                    let mut actions = self.actions.clone();
-                    actions.push(Open(last_node.name));
-                    result.push(Self { actions });
+
+    // TODO : take an IntoIterator<Item=Self> ?
+    fn dual_score(&self, other: &Self, volcano: &Volcano<'v>) -> usize {
+        let mut opened_at: HashMap<&'v str, usize> = HashMap::new();
+        for (name, time) in self.opened_at.iter().chain(other.opened_at.iter()) {
+            if let Some(otime) = opened_at.get(name) {
+                if otime > time {
+                    opened_at.insert(name, *time);
                 }
-                result
             } else {
-                vec![]
+                opened_at.insert(name, *time);
             }
-        } else {
-            vec![]
         }
-    }
-    fn get_open(&self) -> HashSet<&'v str> {
-        self.actions
-            .iter()
-            .filter_map(|a| match a {
-                Open(n) => Some(*n),
-                Move(_) => None,
-            })
-            .collect()
+        // does only work because OpeningPath does not consider order
+        Self {
+            opened_at: opened_at.into_iter().collect(),
+        }
+        .score(volcano)
     }
 
-    fn score_by_valve(&self, volcano: &Volcano) -> HashMap<&'v str, usize> {
-        let time = volcano.time_left;
-
-        self.actions
-            .iter()
-            .take(time)
-            .enumerate()
-            .filter_map(|(i, j)| match j {
-                Open(n) => Some((
-                    *n,
-                    (volcano.time_left - i - 1)
-                        * volcano.valves_by_name.get(n).map(|v| v.flow).unwrap_or(0),
-                )),
-                Move(_) => None,
-            })
-            .collect()
-    }
-
-    fn dual_score(&self, other: &Self, volcano: &Volcano) -> usize {
-        let score_by_valve = self.score_by_valve(volcano);
-        let other_score_by_valve = other.score_by_valve(volcano);
-
-        volcano
-            .valves_by_name
-            .keys()
-            .map(|name| {
-                max(
-                    score_by_valve.get(name).unwrap_or(&0),
-                    other_score_by_valve.get(name).unwrap_or(&0),
-                )
-            })
-            .sum()
+    fn new() -> Self {
+        Self { opened_at: vec![] }
     }
 }
 
@@ -151,17 +80,14 @@ struct Volcano<'v> {
     time_left: usize,
 }
 impl<'v> Volcano<'v> {
-
     fn from_str(s: &'v str) -> Result<Self, eyre::Error> {
-        let valves = s
-            .lines()
-            .filter_map(|l| match Valve::from_str(l) {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    println!("error {e}");
-                    None
-                }
-            });
+        let valves = s.lines().filter_map(|l| match Valve::from_str(l) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                println!("error {e}");
+                None
+            }
+        });
 
         Ok(Self {
             valves_by_name: valves.map(|v| (v.name, v)).collect(),
@@ -169,107 +95,185 @@ impl<'v> Volcano<'v> {
         })
     }
 
-    fn max_score(&self) -> usize {
-        const MAX_POP: usize = 1000;
-        let mut bests = vec![Path {
-            actions: vec![Move("AA")],
-        }]; //fixme : vec is one siez too long
-        for _ in 0..self.time_left {
-            let next_bests = bests
-                .iter()
-                .flat_map(|b| b.nexts(self).into_iter())
-                .sorted_by(|p1, p2| p1.score(self).cmp(&p2.score(self)))
-                .rev()
-                .take(MAX_POP)
-                .collect();
-            bests = next_bests;
-        }
-        if let Some(best) = bests
+    fn distances(&self) -> HashMap<(&'v str, &'v str), usize> {
+        let names: Vec<_> = self
+            .valves_by_name
+            .keys()
+            .copied()
+            .sorted_by(|n1, n2| n1.cmp(n2))
+            .collect();
+        let mut result: HashMap<(&'v str, &'v str), usize> = HashMap::new();
+        for s in names
             .iter()
-            .max_by(|p1, p2| p1.score(self).cmp(&p2.score(self)))
+            .filter_map(|name| self.valves_by_name.get(name))
         {
-            // println!("best {best:?}");
-            Path {
-                actions: best.actions[1..].to_owned(),
+            let mut explored: HashSet<&str> = HashSet::new();
+            explored.insert(s.name);
+            let mut nexts = s.nexts.clone();
+            let mut dist = 1;
+            while !nexts.is_empty() {
+                let next_nexts: Vec<_> = nexts
+                    .iter()
+                    .filter(|n| !explored.contains(*n))
+                    .filter_map(|n| self.valves_by_name.get(n))
+                    .flat_map(|v| v.nexts.iter())
+                    .copied()
+                    .collect();
+                for n in nexts {
+                    explored.insert(n);
+                    result.entry((s.name, n)).or_insert(dist);
+                }
+                nexts = next_nexts;
+                dist += 1;
             }
-            .score(self)
-        } else {
-            0
         }
+        result
     }
 
-    fn max_dual_score(&self) -> usize {
-        // FIXME :
-        // * implement a proper heuristic algo, à la  taboo
-        // * use [Action;30] instead of Vec<Action>
-        //   in fact, use [[Action;30]; MAX_POP]
-        //
+    fn max_score_optimized(&self) -> usize {
+        const MAX_POP: usize = 100;
+        let distances_by_edges = self.distances();
 
-        const MAX_POP: usize = 30000;
-        let mut bests = vec![(
-            Path {
-                actions: vec![Move("AA")],
-            },
-            Path {
-                actions: vec![Move("AA")],
-            },
-        )]; //fixme : vec is one size too long
-        for _ in 0..self.time_left {
-            let next_bests = bests
+        let mut bests: Vec<_> = vec![OpeningPath::new()];
+        let all_valves: Vec<_> = self.valves_by_name.keys().copied().collect();
+        let mut max_score = 0usize;
+
+        while !bests.is_empty() {
+            let distances = &distances_by_edges;
+
+            let new_bests: Vec<_> = bests
+                .iter()
+                .flat_map(|b| {
+                    let already_opened: HashSet<_> = b.opened_at.iter().map(|(n, _)| *n).collect();
+                    let (current, time) = b.opened_at.last().unwrap_or(&("AA", 0));
+                    all_valves
+                        .iter()
+                        .filter(move |v| !already_opened.contains(*v))
+                        .filter_map(move |v| {
+                            if let Some(extra_dist) = distances.get(&(current, *v)) {
+                                if time + extra_dist < self.time_left {
+                                    let mut opened_at = b.opened_at.clone();
+                                    opened_at.push((*v, time + extra_dist + 1));
+                                    Some(OpeningPath { opened_at })
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                })
+                .sorted_by(|op1, op2| op1.score(self).cmp(&op2.score(self)))
+                .rev()
+                .take(MAX_POP)
+                .collect();
+
+            if !new_bests.is_empty() {
+                if let Some(local_best) = new_bests.first() {
+                    let local_best_score = local_best.score(self);
+
+                    if local_best_score > max_score {
+                        // println!(
+                        //     "new best : {:?} => {local_best_score}",
+                        //     new_bests.first().unwrap()
+                        // );
+                        max_score = local_best_score;
+                    }
+                }
+            }
+            bests = new_bests;
+        }
+
+        max_score
+    }
+
+    fn max_dual_score_optimized(&self) -> usize {
+        const MAX_POP: usize = 300;
+        let distances_by_edges = self.distances();
+
+        let mut bests: Vec<_> = vec![(OpeningPath::new(), OpeningPath::new())];
+        let all_valves: Vec<_> = self.valves_by_name.keys().copied().collect();
+        let mut max_score = 0usize;
+
+        let try_extend = |path: &OpeningPath<'v>, v_name: &'v str| {
+            let (current, time) = path.opened_at.last().unwrap_or(&("AA", 0));
+            distances_by_edges
+                .get(&(*current, v_name))
+                .and_then(|extra_dist| {
+                    if *time + *extra_dist < self.time_left {
+                        let mut opened_at = path.opened_at.clone();
+                        opened_at.push((v_name, time + extra_dist + 1));
+                        Some(OpeningPath { opened_at })
+                    } else {
+                        None
+                    }
+                })
+        };
+
+        while !bests.is_empty() {
+            let new_bests: Vec<_> = bests
                 .iter()
                 .flat_map(|(b1, b2)| {
-                    let n2 = b2.nexts(self);
-                    b1.nexts(self)
-                        .into_iter()
-                        .flat_map(move |n1| n2.clone().into_iter().map(move |n2| (n1.clone(), n2)))
+                    let already_opened: HashSet<_> = b1
+                        .opened_at
+                        .iter()
+                        .chain(b2.opened_at.iter())
+                        .map(|(name, _)| *name)
+                        .collect();
+                    all_valves
+                        .iter()
+                        .filter(move |v| !already_opened.contains(*v))
+                        .flat_map(|v| {
+                            let next1 = try_extend(b1, v);
+                            let next2 = try_extend(b2, v);
+
+                            once(next1.map(|n| (n, b2.clone())))
+                                .chain(once(next2.map(|n| (b1.clone(), n))))
+                                .flatten()
+                        })
                 })
-                .filter(|(p1, p2)| {
-                    let open1 = p1.get_open();
-                    let open2 = p2.get_open();
-                    open1.is_disjoint(&open2)
-                })
-                .sorted_by(|(p1, p2), (o1, o2)| {
-                    p1.dual_score(p2, self).cmp(&o1.dual_score(o2, self))
+                .sorted_by(|(op11, op12), (op21, op22)| {
+                    op11.dual_score(op12, self)
+                        .cmp(&op21.dual_score(op22, self))
                 })
                 .rev()
                 .take(MAX_POP)
                 .collect();
-            bests = next_bests;
-        }
-        if let Some((b1, b2)) = bests
-            .iter()
-            .max_by(|(p1, p2), (o1, o2)| p1.dual_score(p2, self).cmp(&o1.dual_score(o2, self)))
-        {
-            let b1 = Path {
-                actions: b1.actions[1..].to_owned(),
-            };
-            let b2 = Path {
-                actions: b2.actions[1..].to_owned(),
-            };
 
-            // println!("dual best {b1:?}\n{b2:?}");
-            b1.dual_score(&b2, self)
-        } else {
-            0
+            if !new_bests.is_empty() {
+                if let Some((local_best1, local_best2)) = new_bests.first() {
+                    let local_best_score = local_best1.dual_score(local_best2, self);
+
+                    if local_best_score > max_score {
+                        // println!(
+                        //     "new best : {:?} => {local_best_score}",
+                        //     new_bests.first().unwrap()
+                        // );
+                        max_score = local_best_score;
+                    }
+                }
+            }
+            bests = new_bests;
         }
+
+        max_score
     }
 }
 
 pub fn escape_volcano() {
     let input = include_str!("../resources/day16_volcano.txt");
     let mut volcano = Volcano::from_str(input).unwrap();
-    let max_pressure = volcano.max_score();
+    let max_pressure = volcano.max_score_optimized();
     println!("max pressure {max_pressure}");
 
     volcano.time_left = 26;
-    let max_pressure = /*2967; // FIXME*/ volcano.max_dual_score();
+    let max_pressure = /*2967; // FIXME*/ volcano.max_dual_score_optimized();
     println!("max dual pressure {max_pressure}");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::day16::Action::{Move, Open};
     use indoc::indoc;
 
     #[test]
@@ -288,41 +292,21 @@ mod tests {
         "};
 
         let mut volcano = Volcano::from_str(input).unwrap();
-        let path = Path {
-            actions: vec![
-                Move("DD"),
-                Open("DD"),
-                Move("CC"),
-                Move("BB"),
-                Open("BB"),
-                Move("AA"),
-                Move("II"),
-                Move("JJ"),
-                Open("JJ"),
-                Move("II"),
-                Move("AA"),
-                Move("DD"),
-                Move("EE"),
-                Move("FF"),
-                Move("GG"),
-                Move("HH"),
-                Open("HH"),
-                Move("GG"),
-                Move("FF"),
-                Move("EE"),
-                Open("EE"),
-                Move("DD"),
-                Move("CC"),
-                Open("CC"),
+
+        let opening_path = OpeningPath {
+            opened_at: vec![
+                ("DD", 2),
+                ("BB", 5),
+                ("JJ", 9),
+                ("HH", 17),
+                ("EE", 21),
+                ("CC", 24),
             ],
         };
-        assert_eq!(1651, 20 * 28 + 13 * 25 + 21 * 21 + 22 * 13 + 3 * 9 + 2 * 6);
+        assert_eq!(1651, opening_path.score(&volcano));
+        assert_eq!(1651, volcano.max_score_optimized());
 
-        assert_eq!(1651, path.score(&volcano));
-        println!("best path {path:?}");
-
-        assert_eq!(1651, volcano.max_score());
         volcano.time_left = 26;
-        assert_eq!(1707, volcano.max_dual_score());
+        assert_eq!(1707, volcano.max_dual_score_optimized());
     }
 }
