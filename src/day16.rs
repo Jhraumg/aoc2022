@@ -1,5 +1,6 @@
 use eyre::{Context, ContextCompat};
 use itertools::Itertools;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::iter::once;
 
@@ -62,7 +63,7 @@ impl<'v> OpeningPath<'v> {
                 opened_at.insert(name, *time);
             }
         }
-        // does only work because OpeningPath does not consider order
+        // does only work because OpeningPath::score does not consider order
         Self {
             opened_at: opened_at.into_iter().collect(),
         }
@@ -212,9 +213,9 @@ impl<'v> Volcano<'v> {
 
         while !bests.is_empty() {
             let new_bests: Vec<_> = bests
-                .iter()
+                .par_iter()
                 .flat_map(|(b1, b2)| {
-                    // FIXME : could store already_opened with each entry, to avoid building it each time
+                    // FIXME : could store vec[available_valves] with each entry, to avoid building already_opened each time
                     let already_opened: HashSet<_> = b1
                         .opened_at
                         .iter()
@@ -222,23 +223,34 @@ impl<'v> Volcano<'v> {
                         .map(|(name, _)| *name)
                         .collect();
                     all_valves
-                        .iter()
+                        .par_iter()
                         .filter(move |v| !already_opened.contains(*v))
-                        .flat_map(|v| {
+                        .flat_map_iter(|v| {
                             let next1 = try_extend(b1, v);
                             let next2 = try_extend(b2, v);
 
-                            once(next1.map(|n| (n, b2.clone())))
-                                .chain(once(next2.map(|n| (b1.clone(), n))))
-                                .flatten()
+                            once(next1.map(|n| {
+                                let b2 = b2.clone();
+                                // FIXME : could deduced new score from the previous one
+                                let score = n.dual_score(&b2, self);
+                                (n, b2, score)
+                            }))
+                            .chain(once(next2.map(|n| {
+                                let b1 = b1.clone();
+                                let score = b1.dual_score(&n, self);
+                                (b1, n, score)
+                            })))
+                            .flatten()
                         })
                 })
-                .sorted_by(|(op11, op12), (op21, op22)| {
-                    op11.dual_score(op12, self)
-                        .cmp(&op21.dual_score(op22, self))
-                })
+                .collect();
+
+            let new_bests: Vec<_> = new_bests
+                .into_iter()
+                .sorted_by(|(_, _, score1), (_, _, score2)| score1.cmp(score2))
                 .rev()
                 .take(MAX_POP)
+                .map(|(op1, op2, _)| (op1, op2))
                 .collect();
 
             if !new_bests.is_empty() {
@@ -268,7 +280,7 @@ pub fn escape_volcano() {
     println!("max pressure {max_pressure}");
 
     volcano.time_left = 26;
-    let max_pressure = /*2967; // FIXME*/ volcano.max_dual_score_optimized();
+    let max_pressure = volcano.max_dual_score_optimized();
     println!("max dual pressure {max_pressure}");
 }
 
