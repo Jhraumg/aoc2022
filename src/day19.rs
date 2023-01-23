@@ -260,7 +260,11 @@ impl Blueprint {
         }
 
         bests.sort_by_key(|b| std::cmp::Reverse(b.score(&costs)));
-        debug_assert_eq!(0, bests.get(0).unwrap().rounds_left, "all rounds should have been run");
+        debug_assert_eq!(
+            0,
+            bests.get(0).unwrap().rounds_left,
+            "all rounds should have been run"
+        );
 
         let best = bests.get(0).unwrap();
 

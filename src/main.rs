@@ -10,6 +10,7 @@ mod day17;
 mod day18;
 mod day19;
 mod day2;
+mod day20;
 mod day3;
 mod day4;
 mod day5;
@@ -38,4 +39,5 @@ fn main() {
     day17::tetris_rock();
     day18::observe_boulders();
     day19::collect_geodes();
+    day20::reach_elves();
 }
