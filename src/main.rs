@@ -11,6 +11,7 @@ mod day18;
 mod day19;
 mod day2;
 mod day20;
+mod day21;
 mod day3;
 mod day4;
 mod day5;
@@ -40,4 +41,5 @@ fn main() {
     day18::observe_boulders();
     day19::collect_geodes();
     day20::reach_elves();
+    day21::solve_riddles();
 }
