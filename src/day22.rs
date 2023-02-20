@@ -358,7 +358,7 @@ impl<'m> Cube<'m> {
         self.faces
             .iter()
             .enumerate()
-            .filter_map(|(i, f)| {
+            .find_map(|(i, f)| {
                 if f.top_left.row <= pos.row
                     && f.bottom_right.row >= pos.row
                     && f.top_left.column <= pos.column
@@ -369,7 +369,6 @@ impl<'m> Cube<'m> {
                     None
                 }
             })
-            .next()
             .expect("{pos} is not on cube surface")
     }
 
