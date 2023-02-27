@@ -15,6 +15,7 @@ mod day21;
 mod day22;
 mod day23;
 mod day24;
+mod day25;
 mod day3;
 mod day4;
 mod day5;
@@ -48,4 +49,5 @@ fn main() {
     day22::decode_password();
     day23::plant_grove();
     day24::escape_valley();
+    day25::calibrate_bob();
 }
